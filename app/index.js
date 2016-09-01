@@ -153,7 +153,7 @@ app.on('ready', () => {
         rpc.emit('session add', {
           uid,
           shell: session.shell,
-          pid: session.pty.pid
+          pid: session.pty.pid || uuid
         });
 
         session.on('data', (data) => {
@@ -352,7 +352,14 @@ app.on('ready', () => {
 });
 
 function initSession (opts, fn) {
-  fn(uuid.v4(), new Session(opts));
+  console.log('spawnning session...')
+  Session.spawn(opts, (err, session) => {
+    if (err) {
+      console.error(err.message, err.stack)
+      return process.exit(1)
+    }
+    fn(uuid.v4(), session)
+  })
 }
 
 app.on('open-file', (event, path) => {

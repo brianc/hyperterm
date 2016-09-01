@@ -5,43 +5,45 @@ const defaultShell = require('default-shell');
 const { getDecoratedEnv } = require('./plugins');
 const { productName, version } = require('./package');
 const config = require('./config');
-
-let spawn;
-try {
-  spawn = require('child_pty').spawn;
-} catch (err) {
-  console.error(
-    'A native module failed to load. Typically this means ' +
-    'you installed the modules incorrectly.\n Use `scripts/install.sh` ' +
-    'to trigger the installation.\n ' +
-    'More information: https://github.com/zeit/hyperterm/issues/72'
-  );
-}
+const { Client } = require('ssh2');
 
 const TITLE_POLL_INTERVAL = 500;
 
 const envFromConfig = config.getConfig().env || {};
 
+const HYPERPUTTY_HOST = process.env.HYPERPUTTY_HOST
+const HYPERPUTTY_USER = process.env.HYPERPUTTY_USER
+const HYPERPUTTY_PASSWORD = process.env.HYPERPUTTY_PASSWORD
+
 module.exports = class Session extends EventEmitter {
 
-  constructor ({ rows, cols: columns, cwd, shell, shellArgs }) {
+  static spawn({ rows, cols: columns }, cb) {
+    const conn = new Client();
+    conn.on('ready', () => {
+      conn.shell((err, stream) => {
+        if (err) {
+          console.log('shell creation error', err)
+          return cb(err)
+        }
+        console.log('created shell')
+        const session = new Session(stream)
+        cb(null, session)
+      })
+    })
+
+    conn.connect({
+      host: HYPERPUTTY_HOST,
+      port: 22,
+      username: HYPERPUTTY_USER,
+      password: HYPERPUTTY_PASSWORD,
+    })
+
+  }
+
+  constructor (pty) {
     super();
-    const baseEnv = Object.assign({}, process.env, {
-      LANG: app.getLocale().replace('-', '_') + '.UTF-8',
-      TERM: 'xterm-256color',
-      TERM_PROGRAM: productName,
-      TERM_PROGRAM_VERSION: version
-    }, envFromConfig);
-
-    const defaultShellArgs = ['--login'];
-
-    this.pty = spawn(shell || defaultShell, shellArgs || defaultShellArgs, {
-      columns,
-      rows,
-      cwd,
-      env: getDecoratedEnv(baseEnv)
-    });
-
+    this.pty = pty;
+    this.shell = 'ssh: ' + HYPERPUTTY_HOST
     this.pty.stdout.on('data', (data) => {
       if (this.ended) {
         return;
@@ -55,9 +57,6 @@ module.exports = class Session extends EventEmitter {
         this.emit('exit');
       }
     });
-
-    this.shell = shell || defaultShell;
-    this.getTitle();
   }
 
   focus () {
@@ -71,6 +70,7 @@ module.exports = class Session extends EventEmitter {
   }
 
   getTitle () {
+    return; // don't get tittle for ssh for now - not 100% sure how
     if ('win32' === process.platform) return;
     if (this.fetching) return;
     this.fetching = true;
@@ -114,7 +114,7 @@ module.exports = class Session extends EventEmitter {
 
   resize ({ cols: columns, rows }) {
     try {
-      this.pty.stdout.resize({ columns, rows });
+      this.pty.setWindow(rows, columns);
     } catch (err) {
       console.error(err.stack);
     }
@@ -122,7 +122,7 @@ module.exports = class Session extends EventEmitter {
 
   destroy () {
     try {
-      this.pty.kill('SIGHUP');
+      this.pty.end();
     } catch (err) {
       console.error('exit error', err.stack);
     }

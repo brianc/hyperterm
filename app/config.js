@@ -6,7 +6,7 @@ const gaze = require('gaze');
 const vm = require('vm');
 const notify = require('./notify');
 
-const path = resolve(homedir(), '.hyperterm.js');
+const path = resolve(homedir(), '.hyperputty.js');
 const watchers = [];
 
 let cfg = {};
