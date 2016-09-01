@@ -352,14 +352,14 @@ app.on('ready', () => {
 });
 
 function initSession (opts, fn) {
-  console.log('spawnning session...')
+  console.log('spawnning session...');
   Session.spawn(opts, (err, session) => {
     if (err) {
-      console.error(err.message, err.stack)
-      return process.exit(1)
+      console.error(err.message, err.stack);
+      return process.exit(1);
     }
-    fn(uuid.v4(), session)
-  })
+    fn(uuid.v4(), session);
+  });
 }
 
 app.on('open-file', (event, path) => {
